@@ -1,0 +1,90 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CooRTweetPost Analyzer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+</head>
+<body class="bg-gray-100 text-gray-800 font-sans">
+  <div class="max-w-4xl mx-auto p-6">
+    <h1 class="text-3xl font-bold mb-6">📊 CooRTweetPost Analyzer</h1>
+
+    <div class="mb-4">
+      <label class="block mb-2 font-semibold">Upload <code>coordinated_communities.csv</code>:</label>
+      <input type="file" id="communitiesFile" class="block w-full p-2 border border-gray-300 rounded" />
+    </div>
+    <div class="mb-4">
+      <label class="block mb-2 font-semibold">Upload <code>coordinated_objects_by_community.csv</code>:</label>
+      <input type="file" id="objectsFile" class="block w-full p-2 border border-gray-300 rounded" />
+    </div>
+
+    <div class="mb-6">
+      <label for="percentage" class="block font-semibold mb-1">Select percentage of top communities:</label>
+      <input type="range" id="percentage" min="1" max="100" value="20" class="w-full">
+      <span id="percentageValue" class="text-sm text-gray-600">20%</span>
+    </div>
+
+    <button onclick="processFiles()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">Analyze</button>
+
+    <div id="results" class="mt-8"></div>
+  </div>
+
+  <script>
+    let communitiesData = [];
+
+    document.getElementById('percentage').addEventListener('input', function(e) {
+      document.getElementById('percentageValue').innerText = e.target.value + '%';
+    });
+
+    function processFiles() {
+      const communitiesFile = document.getElementById('communitiesFile').files[0];
+      const objectsFile = document.getElementById('objectsFile').files[0];
+      if (!communitiesFile || !objectsFile) {
+        alert('Please upload both CSV files.');
+        return;
+      }
+
+      Papa.parse(communitiesFile, {
+        header: true,
+        dynamicTyping: true,
+        complete: function(results) {
+          communitiesData = results.data.filter(row => row.community !== undefined);
+          communitiesData.sort((a, b) => {
+            if (b.unique_objects === a.unique_objects) {
+              return b.unique_vertices - a.unique_vertices;
+            }
+            return b.unique_objects - a.unique_objects;
+          });
+
+          const percent = parseInt(document.getElementById('percentage').value);
+          const numSelected = Math.ceil(communitiesData.length * percent / 100);
+          const selected = communitiesData.slice(0, numSelected);
+          renderTable(selected);
+        }
+      });
+    }
+
+    function renderTable(data) {
+      const container = document.getElementById('results');
+      if (data.length === 0) {
+        container.innerHTML = '<p class="text-red-600">No data to display.</p>';
+        return;
+      }
+
+      let html = '<div class="overflow-x-auto"><table class="min-w-full table-auto bg-white border border-gray-300 rounded shadow"><thead class="bg-gray-200"><tr>';
+      html += Object.keys(data[0]).map(col => `<th class="px-4 py-2 border">${col}</th>`).join('');
+      html += '</tr></thead><tbody>';
+
+      for (const row of data) {
+        html += '<tr class="hover:bg-gray-100">' + Object.values(row).map(val => `<td class="px-4 py-2 border">${val}</td>`).join('') + '</tr>';
+      }
+      html += '</tbody></table></div>';
+
+      container.innerHTML = html;
+    }
+  </script>
+</body>
+</html>
