@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>CooRTweetPost Analyzer with GPT</title>
+  <title>CooRTweetPost GPT Analyzer (Sampled)</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 </head>
@@ -88,12 +88,25 @@
       for (const community of selected) {
         const cid = community.community;
         const texts = objects.filter(o => o.community === cid).map(o => o.object_id).filter(t => !!t);
-        const textPreview = texts.slice(0, 5).map(t => `<li>${t.slice(0, 80)}${t.length > 80 ? "..." : ""}</li>`).join("");
+
+        const MAX_CHAR = 12000;
+        const MAX_SAMPLE = 100;
+        const fullCorpus = texts.map(t => `- ${t}`).join("\n");
+        let usedTexts = texts;
+        let notice = "";
+
+        if (fullCorpus.length > MAX_CHAR) {
+          usedTexts = texts.sort(() => 0.5 - Math.random()).slice(0, MAX_SAMPLE);
+          notice = `⚠️ Sampled ${MAX_SAMPLE} of ${texts.length} texts due to character limit.`;
+        }
+
+        const textPreview = usedTexts.slice(0, 5).map(t => `<li>${t.slice(0, 80)}${t.length > 80 ? "..." : ""}</li>`).join("");
 
         const div = document.createElement("div");
         div.className = "bg-white p-4 rounded shadow border";
         div.innerHTML = `
           <h2 class="text-lg font-semibold mb-2">Community ${cid}</h2>
+          ${notice ? `<p class="text-sm text-yellow-600">${notice}</p>` : ""}
           <p class="mb-2 text-sm text-gray-600">Preview of shared texts:</p>
           <ul class="list-disc ml-5 text-sm text-gray-800">${textPreview}</ul>
           <div class="mt-4 text-sm font-mono text-gray-500" id="result-${cid}">Analyzing <span class="animate-pulse">...</span></div>
@@ -101,8 +114,8 @@
         output.appendChild(div);
 
         if (apiKey) {
-          const fullPrompt = generatePrompt(texts);
-          const result = await callOpenAI(apiKey, fullPrompt);
+          const prompt = generatePrompt(usedTexts);
+          const result = await callOpenAI(apiKey, prompt);
           document.getElementById(`result-${cid}`).innerText = result || "❌ No response or error.";
         } else {
           document.getElementById(`result-${cid}`).innerText = "🔒 API key not provided.";
@@ -127,7 +140,7 @@
             "Authorization": "Bearer " + apiKey
           },
           body: JSON.stringify({
-            model: "gpt-4",
+            model: "gpt-4o",
             messages: [{ role: "user", content: prompt }],
             temperature: 0.5
           })
