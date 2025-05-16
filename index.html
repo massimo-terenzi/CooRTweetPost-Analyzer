@@ -10,7 +10,14 @@
 </head>
 <body class="bg-gray-100 text-gray-900 font-sans leading-relaxed">
   <div class="max-w-5xl mx-auto p-6">
-    <h1 class="text-3xl font-bold mb-4">🧠 CooRTweetPost GPT Analyzer</h1>
+    <h1 class="text-3xl font-bold mb-4">CooRTweetPost GPT Analyzer</h1>
+    <div class="text-sm text-gray-700 mb-6">
+      This browser-based tool works with the outputs from 
+      <a href="https://github.com/nicolarighetti/CooRTweet" target="_blank" class="text-blue-600 underline">CooRTweet</a> 
+      and 
+      <a href="https://github.com/massimo-terenzi/coortweetpost" target="_blank" class="text-blue-600 underline">CooRTweetPost</a> 
+      to analyze coordinated online behavior using GPT-4o. It processes selected communities and outputs textual summaries of their likely narratives.
+    </div>
 
     <div class="mb-4">
       <label class="block mb-1 font-medium">Upload <code>coordinated_communities.csv</code></label>
@@ -33,7 +40,11 @@
       <input type="password" id="apiKey" placeholder="sk-..." class="p-2 w-full border rounded" />
     </div>
 
-    <button onclick="processData()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Generate Reports</button>
+    <div class="mb-4">
+      <button onclick="processData()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 mr-2">Generate Reports</button>
+      <button onclick="stopProcessing()" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">Stop</button>
+    </div>
+    <div id="preview" class="mb-6 text-sm text-gray-600"></div>
 
     <div id="output" class="mt-8 space-y-10"></div>
   </div>
@@ -72,6 +83,11 @@
       });
     }
 
+    let stopFlag = false;
+    function stopProcessing() {
+      stopFlag = true;
+    }
+
     async function analyzeTopCommunities(apiKey) {
       const percent = parseInt(document.getElementById('percentage').value);
       communities.sort((a, b) => {
@@ -82,10 +98,12 @@
       });
 
       const selected = communities.slice(0, Math.ceil(communities.length * percent / 100));
+      document.getElementById("preview").innerHTML = "<strong>Selected Communities:</strong><br>" + 
+        selected.map(c => `Community ${c.community} — Objects: ${c.unique_objects}, Vertices: ${c.unique_vertices}`).join("<br>");
       const output = document.getElementById('output');
       output.innerHTML = "";
 
-      for (const community of selected) {
+      for (const community of selected) { if (stopFlag) break;
         const cid = community.community;
         const texts = objects.filter(o => o.community === cid).map(o => o.object_id).filter(t => !!t);
 
