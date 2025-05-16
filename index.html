@@ -3,87 +3,140 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CooRTweetPost Analyzer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>CooRTweetPost Analyzer with GPT</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 </head>
-<body class="bg-gray-100 text-gray-800 font-sans">
-  <div class="max-w-4xl mx-auto p-6">
-    <h1 class="text-3xl font-bold mb-6">📊 CooRTweetPost Analyzer</h1>
+<body class="bg-gray-100 text-gray-900 font-sans leading-relaxed">
+  <div class="max-w-5xl mx-auto p-6">
+    <h1 class="text-3xl font-bold mb-4">🧠 CooRTweetPost GPT Analyzer</h1>
 
     <div class="mb-4">
-      <label class="block mb-2 font-semibold">Upload <code>coordinated_communities.csv</code>:</label>
-      <input type="file" id="communitiesFile" class="block w-full p-2 border border-gray-300 rounded" />
+      <label class="block mb-1 font-medium">Upload <code>coordinated_communities.csv</code></label>
+      <input type="file" id="communitiesFile" class="p-2 w-full border rounded" />
     </div>
+
     <div class="mb-4">
-      <label class="block mb-2 font-semibold">Upload <code>coordinated_objects_by_community.csv</code>:</label>
-      <input type="file" id="objectsFile" class="block w-full p-2 border border-gray-300 rounded" />
+      <label class="block mb-1 font-medium">Upload <code>coordinated_objects_by_community.csv</code></label>
+      <input type="file" id="objectsFile" class="p-2 w-full border rounded" />
+    </div>
+
+    <div class="mb-4">
+      <label class="block font-medium mb-1">Select % of top communities to analyze:</label>
+      <input type="range" id="percentage" min="1" max="100" value="20" class="w-full">
+      <div class="text-sm text-gray-600 mt-1"><span id="percentageValue">20</span>% selected</div>
     </div>
 
     <div class="mb-6">
-      <label for="percentage" class="block font-semibold mb-1">Select percentage of top communities:</label>
-      <input type="range" id="percentage" min="1" max="100" value="20" class="w-full">
-      <span id="percentageValue" class="text-sm text-gray-600">20%</span>
+      <label class="block mb-1 font-medium">OpenAI API Key:</label>
+      <input type="password" id="apiKey" placeholder="sk-..." class="p-2 w-full border rounded" />
     </div>
 
-    <button onclick="processFiles()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">Analyze</button>
+    <button onclick="processData()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Generate Reports</button>
 
-    <div id="results" class="mt-8"></div>
+    <div id="output" class="mt-8 space-y-10"></div>
   </div>
 
   <script>
-    let communitiesData = [];
+    let communities = [], objects = [];
 
     document.getElementById('percentage').addEventListener('input', function(e) {
-      document.getElementById('percentageValue').innerText = e.target.value + '%';
+      document.getElementById('percentageValue').textContent = e.target.value;
     });
 
-    function processFiles() {
-      const communitiesFile = document.getElementById('communitiesFile').files[0];
-      const objectsFile = document.getElementById('objectsFile').files[0];
-      if (!communitiesFile || !objectsFile) {
-        alert('Please upload both CSV files.');
+    function processData() {
+      const communityFile = document.getElementById('communitiesFile').files[0];
+      const objectFile = document.getElementById('objectsFile').files[0];
+      const apiKey = document.getElementById('apiKey').value.trim();
+
+      if (!communityFile || !objectFile) {
+        alert("Please upload both CSV files.");
         return;
       }
 
-      Papa.parse(communitiesFile, {
+      Papa.parse(communityFile, {
         header: true,
         dynamicTyping: true,
-        complete: function(results) {
-          communitiesData = results.data.filter(row => row.community !== undefined);
-          communitiesData.sort((a, b) => {
-            if (b.unique_objects === a.unique_objects) {
-              return b.unique_vertices - a.unique_vertices;
+        complete: function(res) {
+          communities = res.data.filter(row => row.community !== undefined);
+          Papa.parse(objectFile, {
+            header: true,
+            dynamicTyping: true,
+            complete: function(res2) {
+              objects = res2.data.filter(row => row.community !== undefined);
+              analyzeTopCommunities(apiKey);
             }
-            return b.unique_objects - a.unique_objects;
           });
-
-          const percent = parseInt(document.getElementById('percentage').value);
-          const numSelected = Math.ceil(communitiesData.length * percent / 100);
-          const selected = communitiesData.slice(0, numSelected);
-          renderTable(selected);
         }
       });
     }
 
-    function renderTable(data) {
-      const container = document.getElementById('results');
-      if (data.length === 0) {
-        container.innerHTML = '<p class="text-red-600">No data to display.</p>';
-        return;
+    async function analyzeTopCommunities(apiKey) {
+      const percent = parseInt(document.getElementById('percentage').value);
+      communities.sort((a, b) => {
+        if (b.unique_objects === a.unique_objects) {
+          return b.unique_vertices - a.unique_vertices;
+        }
+        return b.unique_objects - a.unique_objects;
+      });
+
+      const selected = communities.slice(0, Math.ceil(communities.length * percent / 100));
+      const output = document.getElementById('output');
+      output.innerHTML = "";
+
+      for (const community of selected) {
+        const cid = community.community;
+        const texts = objects.filter(o => o.community === cid).map(o => o.object_id).filter(t => !!t);
+        const textPreview = texts.slice(0, 5).map(t => `<li>${t.slice(0, 80)}${t.length > 80 ? "..." : ""}</li>`).join("");
+
+        const div = document.createElement("div");
+        div.className = "bg-white p-4 rounded shadow border";
+        div.innerHTML = `
+          <h2 class="text-lg font-semibold mb-2">Community ${cid}</h2>
+          <p class="mb-2 text-sm text-gray-600">Preview of shared texts:</p>
+          <ul class="list-disc ml-5 text-sm text-gray-800">${textPreview}</ul>
+          <div class="mt-4 text-sm font-mono text-gray-500" id="result-${cid}">Analyzing <span class="animate-pulse">...</span></div>
+        `;
+        output.appendChild(div);
+
+        if (apiKey) {
+          const fullPrompt = generatePrompt(texts);
+          const result = await callOpenAI(apiKey, fullPrompt);
+          document.getElementById(`result-${cid}`).innerText = result || "❌ No response or error.";
+        } else {
+          document.getElementById(`result-${cid}`).innerText = "🔒 API key not provided.";
+        }
       }
+    }
 
-      let html = '<div class="overflow-x-auto"><table class="min-w-full table-auto bg-white border border-gray-300 rounded shadow"><thead class="bg-gray-200"><tr>';
-      html += Object.keys(data[0]).map(col => `<th class="px-4 py-2 border">${col}</th>`).join('');
-      html += '</tr></thead><tbody>';
+    function generatePrompt(texts) {
+      return `### ChatGPT analysis ###\n\n` +
+      `You are an AI assistant helping users analyze clusters of short text messages or social media posts that were likely distributed in a coordinated way. The goal is to identify patterns in language, tone, or rhetorical framing that may reveal shared objectives, ideological leanings, or manipulative strategies.\n\n` +
+      `Here is a list of shared texts:\n` +
+      texts.map(t => `- ${t}`).join("\n") +
+      `\n\nGroup the texts by themes or narratives. Describe rhetorical strategies. Include examples (original with English translation if needed). Conclude with a summary.\n\n### ChatGPT analysis ###`;
+    }
 
-      for (const row of data) {
-        html += '<tr class="hover:bg-gray-100">' + Object.values(row).map(val => `<td class="px-4 py-2 border">${val}</td>`).join('') + '</tr>';
+    async function callOpenAI(apiKey, prompt) {
+      try {
+        const res = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + apiKey
+          },
+          body: JSON.stringify({
+            model: "gpt-4",
+            messages: [{ role: "user", content: prompt }],
+            temperature: 0.5
+          })
+        });
+        const json = await res.json();
+        return json.choices?.[0]?.message?.content;
+      } catch (err) {
+        return "⚠️ Error during API request.";
       }
-      html += '</tbody></table></div>';
-
-      container.innerHTML = html;
     }
   </script>
 </body>
