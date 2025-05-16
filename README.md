@@ -1,4 +1,4 @@
-# 🧠 CooRTweetReports
+# CooRTweetReports
 
 **CooRTweetReports** is a browser-based tool to analyze coordinated social media activity using OpenAI’s GPT models.  
 It works in combination with two R packages:
